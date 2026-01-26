@@ -1,0 +1,44 @@
+---
+description: Architecture rules for reTerminal Dashboard
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# Architecture Rules
+
+## Source of Truth
+
+The architecture for this project is defined in `ARCHITECTURE.md` at the project root.
+Always refer to this document before making structural changes.
+
+## Critical Constraints
+
+1. **Architecture Changes Require Approval**
+   - Do NOT modify the core architecture without explicit user approval
+   - This includes: directory structure, tech stack, data flow patterns
+   - If a change seems necessary, propose it and wait for confirmation
+
+2. **E-Ink Display Optimization**
+   - NEVER add CSS transitions or animations
+   - NEVER use smooth scrolling
+   - All UI updates should be instant/static
+   - The global CSS already disables transitions/animations - do not override
+
+3. **Tab System**
+   - New tabs/widgets are added via `src/config/tabs.tsx`
+   - Each widget should be a self-contained component in `src/components/Widgets/`
+   - Widgets fetch their own data and handle their own loading states
+
+4. **Backend API**
+   - All external API calls go through the Express backend
+   - Frontend only communicates with `/api/*` endpoints
+   - Secrets (like service account keys) stay server-side only
+
+## File Organization
+
+- `server/` - Backend Express code only
+- `src/components/Widgets/` - Tab content components
+- `src/components/Rotation/` - Tab rotation logic
+- `src/components/Layout/` - Page shell and structure
+- `src/config/` - Configuration files
+- `src/hooks/` - Reusable React hooks
