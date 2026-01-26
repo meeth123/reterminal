@@ -1,5 +1,86 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getCalendarEvents } from '../server/calendar';
+import { google, calendar_v3 } from 'googleapis';
+
+interface CalendarEvent {
+  id: string;
+  summary: string;
+  start: string;
+  end: string;
+  location?: string;
+  allDay: boolean;
+}
+
+interface CalendarResponse {
+  events: CalendarEvent[];
+  date: string;
+}
+
+let calendarClient: calendar_v3.Calendar | null = null;
+
+async function getCalendarClient(): Promise<calendar_v3.Calendar> {
+  if (calendarClient) {
+    return calendarClient;
+  }
+
+  const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+
+  if (!serviceAccountJson) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON environment variable is not set');
+  }
+
+  const credentials = JSON.parse(serviceAccountJson);
+
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
+  });
+
+  calendarClient = google.calendar({ version: 'v3', auth });
+  return calendarClient;
+}
+
+async function getEventsForDate(dateStr?: string): Promise<CalendarResponse> {
+  console.log('[StaticCalendar] getEventsForDate called with dateStr:', dateStr);
+
+  const calendar = await getCalendarClient();
+  const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
+  console.log('[StaticCalendar] Using calendarId:', calendarId);
+
+  const targetDate = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
+  const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+  const endOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 1);
+
+  console.log('[StaticCalendar] Fetching events from:', startOfDay.toISOString(), 'to:', endOfDay.toISOString());
+
+  const response = await calendar.events.list({
+    calendarId,
+    timeMin: startOfDay.toISOString(),
+    timeMax: endOfDay.toISOString(),
+    singleEvents: true,
+    orderBy: 'startTime',
+  });
+
+  console.log('[StaticCalendar] Raw API response items count:', response.data.items?.length || 0);
+
+  const events: CalendarEvent[] = (response.data.items || []).map((event) => {
+    const isAllDay = !event.start?.dateTime;
+    return {
+      id: event.id || '',
+      summary: event.summary || 'No Title',
+      start: event.start?.dateTime || event.start?.date || '',
+      end: event.end?.dateTime || event.end?.date || '',
+      location: event.location,
+      allDay: isAllDay,
+    };
+  });
+
+  console.log('[StaticCalendar] Processed events count:', events.length);
+
+  return {
+    events,
+    date: dateStr || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }),
+  };
+}
 
 function getTodayString(): string {
   const today = new Date();
@@ -39,16 +120,17 @@ function escapeHtml(text: string): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const timestamp = new Date().toISOString();
   console.log('=== Static Calendar Request ===');
-  console.log('Query params:', req.query);
-  console.log('User Agent:', req.headers['user-agent']);
+  console.log(`[${timestamp}] Query params:`, req.query);
+  console.log(`[${timestamp}] User Agent:`, req.headers['user-agent']);
 
   try {
     const date = (req.query.date as string) || getTodayString();
-    console.log('Fetching events for date:', date);
+    console.log(`[${timestamp}] Fetching events for date:`, date);
 
-    const { events } = await getCalendarEvents(date);
-    console.log('Successfully fetched events:', events.length);
+    const { events } = await getEventsForDate(date);
+    console.log(`[${timestamp}] Successfully fetched events:`, events.length);
 
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -203,11 +285,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 </body>
 </html>`;
 
+    console.log(`[${timestamp}] Sending HTML response`);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.status(200).send(html);
   } catch (error) {
-    console.error('Error generating static calendar:', error);
+    console.error('=== Static Calendar ERROR ===');
+    console.error(`[${timestamp}] Error:`, error);
+    console.error(`[${timestamp}] Stack:`, error instanceof Error ? error.stack : 'No stack trace');
+
     res.status(500).send(`
 <!DOCTYPE html>
 <html>
@@ -224,7 +310,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     h1 { color: #dc2626; margin-bottom: 20px; }
     .error { background: white; padding: 20px; border-radius: 8px; margin: 20px; }
-    pre { text-align: left; background: #f5f5f5; padding: 10px; overflow: auto; }
+    pre { text-align: left; background: #f5f5f5; padding: 10px; overflow: auto; font-size: 12px; }
   </style>
 </head>
 <body>
@@ -234,7 +320,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     <pre>${error instanceof Error ? escapeHtml(error.message) : 'Unknown error'}</pre>
     ${error instanceof Error && error.stack ? `
       <p><strong>Stack trace:</strong></p>
-      <pre>${escapeHtml(error.stack)}</pre>
+      <pre>${escapeHtml(error.stack.substring(0, 500))}</pre>
     ` : ''}
   </div>
 </body>
