@@ -45,49 +45,78 @@ export function CalendarWidgetNoTouch() {
   const [data, setData] = useState<CalendarData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<string>('');
+  const [debugStatus, setDebugStatus] = useState<string>('Initializing...');
+  const [fetchAttempt, setFetchAttempt] = useState<number>(0);
+  const [heartbeat, setHeartbeat] = useState<number>(0);
+
+  // Heartbeat to prove JavaScript is running
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setHeartbeat(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const fetchEvents = useCallback(async () => {
-    console.log('[CalendarWidgetNoTouch] Fetching events...');
+    const attempt = fetchAttempt + 1;
+    setFetchAttempt(attempt);
+    setDebugStatus(`[${attempt}] Starting fetch...`);
+    console.log(`[CalendarWidgetNoTouch] Attempt ${attempt}: Fetching events...`);
 
     try {
+      setDebugStatus(`[${attempt}] Getting date...`);
       const date = getTodayString();
       const url = `/api/events?date=${date}`;
+      setDebugStatus(`[${attempt}] URL: ${url}`);
       console.log('[CalendarWidgetNoTouch] Fetching from:', url);
 
+      setDebugStatus(`[${attempt}] Creating fetch request...`);
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const timeoutId = setTimeout(() => {
+        console.log('[CalendarWidgetNoTouch] Timeout triggered!');
+        setDebugStatus(`[${attempt}] Timeout after 10s`);
+        controller.abort();
+      }, 10000);
 
+      setDebugStatus(`[${attempt}] Sending fetch...`);
+      const fetchStart = Date.now();
       const response = await fetch(url, {
         headers: { 'Accept': 'application/json' },
         signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
+      const fetchDuration = Date.now() - fetchStart;
+      setDebugStatus(`[${attempt}] Response received (${fetchDuration}ms)`);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
 
+      setDebugStatus(`[${attempt}] Parsing JSON...`);
       const result = await response.json();
       console.log('[CalendarWidgetNoTouch] Success! Events:', result.events?.length || 0);
 
+      setDebugStatus(`[${attempt}] Success! ${result.events?.length || 0} events`);
       setData(result);
       setError(null);
       setLastUpdate(new Date().toLocaleTimeString());
     } catch (err) {
       console.error('[CalendarWidgetNoTouch] Error:', err);
 
-      // Show error briefly, then retry
       const errorMsg = err instanceof Error ? err.message : 'Network error';
+      const errorDetail = err instanceof Error ? err.name : 'Unknown';
+      setDebugStatus(`[${attempt}] ERROR: ${errorDetail} - ${errorMsg}`);
       setError(errorMsg);
 
       // Auto-retry after 30 seconds if error
       setTimeout(() => {
         console.log('[CalendarWidgetNoTouch] Auto-retrying after error...');
+        setDebugStatus(`[${attempt}] Will retry in 30s...`);
         fetchEvents();
       }, 30000);
     }
-  }, []);
+  }, [fetchAttempt]);
 
   // Initial fetch
   useEffect(() => {
@@ -107,21 +136,30 @@ export function CalendarWidgetNoTouch() {
     return () => clearInterval(interval);
   }, [fetchEvents]);
 
-  // Show loading state with minimal UI
+  // Show loading state with debug info
   if (!data && !error) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-8">
-        <div className="text-center">
+        <div className="text-center max-w-2xl">
           <div className="text-6xl mb-4">📅</div>
           <h2 className="text-2xl font-bold text-slate-800 mb-2">Loading Calendar</h2>
           <p className="text-slate-600">Connecting to API...</p>
+
+          {/* Debug status */}
+          <div className="mt-6 p-4 bg-blue-50 border-2 border-blue-300 rounded-lg">
+            <p className="text-sm font-mono text-blue-900">{debugStatus}</p>
+            <p className="text-xs text-blue-700 mt-2">Attempt #{fetchAttempt}</p>
+            <p className="text-xs text-blue-600 mt-2">Heartbeat: {heartbeat}s (JS running ✓)</p>
+          </div>
+
           <p className="text-sm text-slate-400 mt-4">No touch required - fully automatic</p>
+          <p className="text-xs text-slate-400 mt-2">Time: {new Date().toLocaleTimeString()}</p>
         </div>
       </div>
     );
   }
 
-  // Show error with auto-retry message
+  // Show error with auto-retry message and debug info
   if (error && !data) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-8">
@@ -129,7 +167,14 @@ export function CalendarWidgetNoTouch() {
           <div className="text-6xl mb-4">⚠️</div>
           <h2 className="text-2xl font-bold text-red-800 mb-2">Connection Error</h2>
           <p className="text-lg text-red-600 mb-4">{error}</p>
-          <p className="text-slate-600">Auto-retrying in 30 seconds...</p>
+
+          {/* Debug status */}
+          <div className="mt-4 p-4 bg-red-50 border-2 border-red-300 rounded-lg">
+            <p className="text-sm font-mono text-red-900">{debugStatus}</p>
+            <p className="text-xs text-red-700 mt-2">Attempt #{fetchAttempt}</p>
+          </div>
+
+          <p className="text-slate-600 mt-4">Auto-retrying in 30 seconds...</p>
           <p className="text-sm text-slate-400 mt-6">
             Device: {navigator.userAgent.substring(0, 80)}
           </p>
