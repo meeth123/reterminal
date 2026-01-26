@@ -1,91 +1,53 @@
-import dotenv from 'dotenv';
-dotenv.config();
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { getCalendarEvents } from '../server/calendar';
 
-// Debug: Log env vars right after loading
-console.log('[ENV] GOOGLE_CALENDAR_ID:', process.env.GOOGLE_CALENDAR_ID);
-console.log('[ENV] GOOGLE_SERVICE_ACCOUNT_PATH:', process.env.GOOGLE_SERVICE_ACCOUNT_PATH);
-console.log('[ENV] PORT:', process.env.PORT);
+function getTodayString(): string {
+  const today = new Date();
+  return today.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+}
 
-import express from 'express';
-import cors from 'cors';
-import path from 'path';
-import { getEventsForDate } from './calendar';
+function formatTime(isoString: string, allDay: boolean): string {
+  if (allDay) return 'All Day';
+  const date = new Date(isoString);
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Kolkata',
+  });
+}
 
-const app = express();
-const PORT = process.env.PORT || 3001;
+function formatDateHeader(dateString: string): string {
+  const date = new Date(dateString + 'T00:00:00');
+  return date.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'Asia/Kolkata',
+  });
+}
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+function escapeHtml(text: string): string {
+  const map: { [key: string]: string } = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;',
+  };
+  return text.replace(/[&<>"']/g, m => map[m]);
+}
 
-// API Routes
-app.get('/api/events', async (req, res) => {
-  try {
-    const date = req.query.date as string | undefined;
-    const data = await getEventsForDate(date);
-    res.json(data);
-  } catch (error) {
-    console.error('Error fetching calendar events:', error);
-    res.status(500).json({
-      error: 'Failed to fetch calendar events',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-// Health check
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// Static calendar route for SenseCraft HMI (server-side rendered)
-app.get('/api/static-calendar', async (req, res) => {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('=== Static Calendar Request ===');
   console.log('Query params:', req.query);
   console.log('User Agent:', req.headers['user-agent']);
 
   try {
-    const getTodayString = () => {
-      const today = new Date();
-      return today.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-    };
-
-    const formatTime = (isoString: string, allDay: boolean) => {
-      if (allDay) return 'All Day';
-      const date = new Date(isoString);
-      return date.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-        timeZone: 'Asia/Kolkata',
-      });
-    };
-
-    const formatDateHeader = (dateString: string) => {
-      const date = new Date(dateString + 'T00:00:00');
-      return date.toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric',
-        timeZone: 'Asia/Kolkata',
-      });
-    };
-
-    const escapeHtml = (text: string) => {
-      const map: { [key: string]: string } = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;',
-      };
-      return text.replace(/[&<>"']/g, m => map[m]);
-    };
-
     const date = (req.query.date as string) || getTodayString();
     console.log('Fetching events for date:', date);
 
-    const { events } = await getEventsForDate(date);
+    const { events } = await getCalendarEvents(date);
     console.log('Successfully fetched events:', events.length);
 
     const html = `<!DOCTYPE html>
@@ -95,7 +57,12 @@ app.get('/api/static-calendar', async (req, res) => {
   <meta name="viewport" content="width=800, height=480">
   <title>Calendar - ${formatDateHeader(date)}</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
     body {
       width: 800px;
       height: 480px;
@@ -104,21 +71,25 @@ app.get('/api/static-calendar', async (req, res) => {
       padding: 20px;
       overflow: hidden;
     }
+
     .header {
       border-bottom: 3px solid #1e293b;
       padding-bottom: 12px;
       margin-bottom: 16px;
     }
+
     .title {
       font-size: 28px;
       font-weight: bold;
       color: #0f172a;
       margin-bottom: 4px;
     }
+
     .subtitle {
       font-size: 18px;
       color: #475569;
     }
+
     .events {
       display: flex;
       flex-direction: column;
@@ -126,6 +97,7 @@ app.get('/api/static-calendar', async (req, res) => {
       max-height: 360px;
       overflow: hidden;
     }
+
     .event {
       background: white;
       border: 2px solid #cbd5e1;
@@ -134,44 +106,56 @@ app.get('/api/static-calendar', async (req, res) => {
       display: flex;
       gap: 16px;
     }
+
     .event-time {
       flex-shrink: 0;
       width: 120px;
     }
+
     .event-time-main {
       font-size: 18px;
       font-weight: bold;
       color: #1e293b;
     }
+
     .event-time-end {
       font-size: 12px;
       color: #64748b;
       margin-top: 2px;
     }
-    .event-details { flex: 1; }
+
+    .event-details {
+      flex: 1;
+    }
+
     .event-title {
       font-size: 18px;
       font-weight: 600;
       color: #0f172a;
       margin-bottom: 4px;
     }
+
     .event-location {
       font-size: 14px;
       color: #475569;
     }
+
     .no-events {
       text-align: center;
       padding: 60px 20px;
     }
+
     .no-events-icon {
       font-size: 64px;
       margin-bottom: 16px;
     }
+
     .no-events-text {
       font-size: 20px;
       color: #64748b;
       font-weight: 600;
     }
+
     .footer {
       position: absolute;
       bottom: 20px;
@@ -224,17 +208,6 @@ app.get('/api/static-calendar', async (req, res) => {
     res.status(200).send(html);
   } catch (error) {
     console.error('Error generating static calendar:', error);
-    const escapeHtml = (text: string) => {
-      const map: { [key: string]: string } = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;',
-      };
-      return text.replace(/[&<>"']/g, m => map[m]);
-    };
-
     res.status(500).send(`
 <!DOCTYPE html>
 <html>
@@ -259,23 +232,13 @@ app.get('/api/static-calendar', async (req, res) => {
   <div class="error">
     <p><strong>Error message:</strong></p>
     <pre>${error instanceof Error ? escapeHtml(error.message) : 'Unknown error'}</pre>
+    ${error instanceof Error && error.stack ? `
+      <p><strong>Stack trace:</strong></p>
+      <pre>${escapeHtml(error.stack)}</pre>
+    ` : ''}
   </div>
 </body>
 </html>
     `);
   }
-});
-
-// Serve static files in production
-if (process.env.NODE_ENV === 'production') {
-  const distPath = path.join(__dirname, '../dist');
-  app.use(express.static(distPath));
-  
-  app.get('*', (_req, res) => {
-    res.sendFile(path.join(distPath, 'index.html'));
-  });
 }
-
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
