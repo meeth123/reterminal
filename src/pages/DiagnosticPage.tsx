@@ -164,7 +164,7 @@ export function DiagnosticPage() {
         </header>
 
         <div className="space-y-4 mb-6">
-          {tests.map((test, index) => (
+          {tests.map((test) => (
             <div
               key={test.name}
               className={`border-2 rounded-lg p-4 ${getStatusColor(test.status)}`}
