@@ -93,6 +93,19 @@ The RotationManager will automatically include the new tab in rotation.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed architecture documentation.
 
+## Deploying to Vercel
+
+The app is configured for Vercel deployment with serverless functions:
+
+1. Push your code to GitHub
+2. Import the repository in Vercel
+3. Add environment variables in Vercel dashboard:
+   - `GOOGLE_SERVICE_ACCOUNT_JSON`: Paste the entire contents of your service account JSON file
+   - `GOOGLE_CALENDAR_ID`: Your calendar ID (email address)
+4. Deploy
+
+The API routes in `api/` directory will be automatically deployed as serverless functions.
+
 ## Scripts
 
 | Script | Description |
