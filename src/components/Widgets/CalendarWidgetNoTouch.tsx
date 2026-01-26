@@ -94,12 +94,15 @@ export function CalendarWidgetNoTouch() {
     fetchEvents();
   }, [fetchEvents]);
 
-  // Auto-refresh every 5 minutes
+  // Auto-refresh every 2 minutes (configurable)
+  // Faster refresh for E-Ink display to ensure up-to-date info
   useEffect(() => {
+    const REFRESH_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+
     const interval = setInterval(() => {
       console.log('[CalendarWidgetNoTouch] Auto-refresh triggered');
       fetchEvents();
-    }, 5 * 60 * 1000);
+    }, REFRESH_INTERVAL_MS);
 
     return () => clearInterval(interval);
   }, [fetchEvents]);
@@ -198,7 +201,7 @@ export function CalendarWidgetNoTouch() {
             {lastUpdate && ` • Updated ${lastUpdate}`}
           </p>
           <p className="text-xs text-slate-400 mt-2">
-            Auto-refreshes every 5 minutes
+            Auto-refreshes every 2 minutes
           </p>
         </footer>
 
