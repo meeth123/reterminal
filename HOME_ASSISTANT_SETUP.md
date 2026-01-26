@@ -132,7 +132,224 @@ Access at http://localhost:8123
 
 ---
 
-## Option 3: Cloud/VPS (Not Recommended)
+## Option 3: macOS with VirtualBox
+
+Perfect for testing and development on your Mac. Your Mac stays available for other work while Home Assistant runs in a VM.
+
+### Requirements
+- macOS (works on both Intel and Apple Silicon)
+- 4GB+ RAM available for VM
+- 32GB+ free disk space
+- VirtualBox 7.0 or later
+
+### Installation Steps
+
+#### 1. Install VirtualBox
+
+**Download and Install:**
+```bash
+# Visit https://www.virtualbox.org/wiki/Downloads
+# Download "macOS / Intel hosts" or "macOS / Apple Silicon hosts"
+# Open the .dmg file and run the installer
+# Follow the installation wizard
+```
+
+**Important for Apple Silicon Macs:**
+- You may need to allow the kernel extension in System Settings → Privacy & Security
+- Restart your Mac after installation
+
+#### 2. Download Home Assistant VM Image
+
+**For Apple Silicon (M1/M2/M3/M4):**
+```bash
+# Download the ARM64 image
+cd ~/Downloads
+curl -LO https://github.com/home-assistant/operating-system/releases/latest/download/haos_ova-13.2.arm64.vmdk.zip
+
+# Extract the image
+unzip haos_ova-13.2.arm64.vmdk.zip
+```
+
+**For Intel Macs:**
+```bash
+# Download the x86-64 image
+cd ~/Downloads
+curl -LO https://github.com/home-assistant/operating-system/releases/latest/download/haos_ova-13.2.vdi.zip
+
+# Extract the image
+unzip haos_ova-13.2.vdi.zip
+```
+
+#### 3. Create Virtual Machine in VirtualBox
+
+1. **Open VirtualBox** and click **New**
+
+2. **Basic Settings:**
+   - Name: `Home Assistant`
+   - Type: `Linux`
+   - Version: `Oracle Linux (64-bit)` for Intel OR `Oracle Linux (ARM64)` for Apple Silicon
+   - Click **Continue**
+
+3. **Memory (RAM):**
+   - Allocate at least **4096 MB (4GB)**
+   - More is better if you have it (8GB recommended)
+   - Click **Continue**
+
+4. **Hard Disk:**
+   - Select **Use an existing virtual hard disk file**
+   - Click the folder icon
+   - Navigate to your Downloads folder
+   - Select the `.vmdk` file (Apple Silicon) or `.vdi` file (Intel)
+   - Click **Create**
+
+#### 4. Configure VM Settings
+
+Before starting, configure these settings:
+
+1. **Right-click VM** → **Settings**
+
+2. **System Tab:**
+   - **Motherboard:**
+     - ✅ Enable **Enable EFI (special OSes only)** ← CRITICAL!
+     - Boot Order: Hard Disk first, then Network
+   - **Processor:**
+     - Allocate at least 2 CPUs (4+ recommended)
+
+3. **Network Tab:**
+   - **Adapter 1:**
+     - Attached to: **Bridged Adapter**
+     - Name: Select your active network interface (Wi-Fi or Ethernet)
+     - This allows Home Assistant to get its own IP on your network
+
+4. **Audio Tab:**
+   - Audio Controller: **Intel HD Audio**
+   - (Not critical for headless server)
+
+5. **Storage Tab (Optional - for better disk performance):**
+   - Click on your disk
+   - Under "Hard Disk:", check **Solid-state Drive**
+
+Click **OK** to save settings.
+
+#### 5. Start Home Assistant
+
+1. **Select your VM** and click **Start**
+2. A console window will open showing the boot process
+3. **Wait 20 minutes** for initial setup
+   - Home Assistant will download and install updates
+   - The VM may reboot once or twice
+   - You'll eventually see a login prompt (don't log in here)
+
+#### 6. Access Home Assistant Web Interface
+
+Once the VM is running:
+
+1. **Option A - Try hostname first:**
+   - Open browser: `http://homeassistant.local:8123`
+
+2. **Option B - Use IP address:**
+   - In the VM console window, look for the IP address displayed
+   - Or check your router's connected devices
+   - Go to: `http://YOUR_VM_IP:8123`
+   - Example: `http://192.168.1.100:8123`
+
+3. **Create your account** and complete onboarding
+
+### Managing the VM
+
+**Starting Home Assistant:**
+```bash
+# Option 1: Use VirtualBox GUI
+# Open VirtualBox → Select VM → Click Start
+
+# Option 2: Use command line (headless mode)
+VBoxManage startvm "Home Assistant" --type headless
+
+# Option 3: Create an alias (add to ~/.zshrc or ~/.bashrc)
+echo 'alias ha-start="VBoxManage startvm \"Home Assistant\" --type headless"' >> ~/.zshrc
+echo 'alias ha-stop="VBoxManage controlvm \"Home Assistant\" acpipowerbutton"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+**Stopping Home Assistant:**
+```bash
+# Graceful shutdown (recommended)
+VBoxManage controlvm "Home Assistant" acpipowerbutton
+
+# Or use alias
+ha-stop
+```
+
+**Auto-start on Mac Boot (Optional):**
+```bash
+# Create a Launch Agent
+mkdir -p ~/Library/LaunchAgents
+
+cat > ~/Library/LaunchAgents/com.homeassistant.vm.plist <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.homeassistant.vm</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/VBoxManage</string>
+        <string>startvm</string>
+        <string>Home Assistant</string>
+        <string>--type</string>
+        <string>headless</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
+EOF
+
+# Load it
+launchctl load ~/Library/LaunchAgents/com.homeassistant.vm.plist
+```
+
+### Troubleshooting macOS Installation
+
+**VirtualBox won't install:**
+- Go to System Settings → Privacy & Security
+- Allow software from Oracle
+- Restart your Mac
+
+**"Enable EFI" option is grayed out:**
+- You must select it BEFORE attaching the disk
+- Delete the VM and recreate it, checking EFI before adding the disk
+
+**Can't access homeassistant.local:8123:**
+- Make sure VM is using Bridged Adapter (not NAT)
+- Try the VM's IP address directly
+- Check your Mac's firewall settings (System Settings → Network → Firewall)
+- Wait longer (initial setup takes 20+ minutes)
+
+**VM is slow or laggy:**
+- Allocate more RAM (8GB recommended)
+- Allocate more CPU cores (4+ recommended)
+- Enable "Solid-state Drive" option in Storage settings
+
+**Apple Silicon specific issues:**
+- Make sure you downloaded the ARM64 `.vmdk` image, not the x86-64 `.vdi`
+- Update to latest VirtualBox version
+- Some features may be experimental on Apple Silicon
+
+### Resource Usage
+
+With typical configuration:
+- **RAM**: 4-8GB while running
+- **Disk**: 32GB (grows as needed)
+- **CPU**: Low when idle, spikes during updates/automation
+- **Battery Impact**: Moderate on laptops
+
+**Recommendation**: For development/testing on Mac, keep the VM stopped when not in use to save resources.
+
+---
+
+## Option 4: Cloud/VPS (Not Recommended)
 
 You can run Home Assistant on a cloud server, but:
 - ❌ More complex networking setup
