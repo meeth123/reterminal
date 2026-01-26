@@ -63,28 +63,51 @@ export function CalendarWidget() {
 
   const fetchEvents = useCallback(async (date: string) => {
     console.log('[CalendarWidget] Fetching events for date:', date);
+    console.log('[CalendarWidget] Current time:', new Date().toISOString());
+    console.log('[CalendarWidget] User Agent:', navigator.userAgent);
+
     try {
       setLoading(true);
       const url = `/api/events?date=${date}`;
       console.log('[CalendarWidget] Fetching from URL:', url);
-      
-      const response = await fetch(url);
+      console.log('[CalendarWidget] Full URL:', window.location.origin + url);
+
+      // Test health check first
+      console.log('[CalendarWidget] Testing health endpoint...');
+      const healthResponse = await fetch('/api/health');
+      console.log('[CalendarWidget] Health check status:', healthResponse.status);
+      if (healthResponse.ok) {
+        const healthData = await healthResponse.json();
+        console.log('[CalendarWidget] Health check data:', healthData);
+      }
+
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
       console.log('[CalendarWidget] Response status:', response.status);
-      
+      console.log('[CalendarWidget] Response headers:', Object.fromEntries(response.headers.entries()));
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('[CalendarWidget] Error response:', errorText);
-        throw new Error('Failed to fetch events');
+        throw new Error(`Failed to fetch events: ${response.status} ${response.statusText}`);
       }
-      
+
       const result = await response.json();
       console.log('[CalendarWidget] Received data:', JSON.stringify(result, null, 2));
       console.log('[CalendarWidget] Events count:', result.events?.length || 0);
-      
+
       setData(result);
       setError(null);
     } catch (err) {
       console.error('[CalendarWidget] Fetch error:', err);
+      console.error('[CalendarWidget] Error details:', {
+        name: err instanceof Error ? err.name : 'Unknown',
+        message: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : undefined,
+      });
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
@@ -125,11 +148,25 @@ export function CalendarWidget() {
   if (error) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <h2 className="text-lg font-semibold text-red-800">Error</h2>
-        <p className="text-red-600">{error}</p>
-        <p className="text-sm text-red-500 mt-2">
-          Make sure the backend is running and the service account is configured.
-        </p>
+        <h2 className="text-lg font-semibold text-red-800">Error Loading Calendar</h2>
+        <p className="text-red-600 mt-2">{error}</p>
+        <div className="mt-4 space-y-2">
+          <p className="text-sm text-red-500">
+            Make sure the backend is running and the service account is configured.
+          </p>
+          <p className="text-xs text-slate-600">
+            User Agent: {navigator.userAgent.substring(0, 60)}...
+          </p>
+          <p className="text-xs text-slate-600">
+            Time: {new Date().toLocaleString()}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          >
+            Reload Page
+          </button>
+        </div>
       </div>
     );
   }

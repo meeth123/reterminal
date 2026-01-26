@@ -86,28 +86,56 @@ async function getEventsForDate(dateStr?: string): Promise<CalendarResponse> {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Log incoming request details for debugging
+  const clientIp = req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || 'unknown';
+  const userAgent = req.headers['user-agent'] || 'unknown';
+  const timestamp = new Date().toISOString();
+
+  console.log('=== API Request Start ===');
+  console.log(`[${timestamp}] Method: ${req.method}`);
+  console.log(`[${timestamp}] Client IP: ${clientIp}`);
+  console.log(`[${timestamp}] User Agent: ${userAgent}`);
+  console.log(`[${timestamp}] Query params:`, req.query);
+  console.log('========================');
+
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
+    console.log(`[${timestamp}] OPTIONS request - responding with CORS headers`);
     return res.status(200).end();
   }
 
   if (req.method !== 'GET') {
+    console.log(`[${timestamp}] ERROR: Method not allowed - ${req.method}`);
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
     const date = req.query.date as string | undefined;
+    console.log(`[${timestamp}] Fetching events for date: ${date || 'today'}`);
+
+    const startTime = Date.now();
     const data = await getEventsForDate(date);
+    const duration = Date.now() - startTime;
+
+    console.log(`[${timestamp}] SUCCESS: Fetched ${data.events.length} events in ${duration}ms`);
+    console.log(`[${timestamp}] Response date: ${data.date}`);
+    console.log('=== API Request End ===');
+
     res.status(200).json(data);
   } catch (error) {
-    console.error('Error fetching calendar events:', error);
+    console.error('=== API ERROR ===');
+    console.error(`[${timestamp}] Error fetching calendar events:`, error);
+    console.error(`[${timestamp}] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
+    console.error('=================');
+
     res.status(500).json({
       error: 'Failed to fetch calendar events',
-      message: error instanceof Error ? error.message : 'Unknown error'
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp,
     });
   }
 }
