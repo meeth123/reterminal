@@ -78,6 +78,13 @@ async function getEventsForDate(dateStr?: string): Promise<CalendarResponse> {
 
   console.log('[Calendar] Raw API response items count:', response.data.items?.length || 0);
 
+  // Debug: Log first event's attendees
+  if (response.data.items && response.data.items.length > 0) {
+    const firstEvent = response.data.items[0];
+    console.log('[Calendar] First event attendees:', firstEvent.attendees?.length || 0);
+    console.log('[Calendar] First event raw attendees:', JSON.stringify(firstEvent.attendees));
+  }
+
   const events: CalendarEvent[] = (response.data.items || []).map((event) => {
     const isAllDay = !event.start?.dateTime;
     return {

@@ -76,6 +76,14 @@ async function getEventsForDate(dateStr?: string): Promise<CalendarResponse> {
 
   console.log('[StaticCalendar] Raw API response items count:', response.data.items?.length || 0);
 
+  // Debug: Log first event's attendees
+  if (response.data.items && response.data.items.length > 0) {
+    const firstEvent = response.data.items[0];
+    console.log('[StaticCalendar] First event attendees:', firstEvent.attendees?.length || 0);
+    console.log('[StaticCalendar] First event has attendees field:', 'attendees' in firstEvent);
+    console.log('[StaticCalendar] First event visibility:', firstEvent.visibility);
+  }
+
   const events: CalendarEvent[] = (response.data.items || []).map((event) => {
     const isAllDay = !event.start?.dateTime;
     return {
