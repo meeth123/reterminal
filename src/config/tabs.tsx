@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { CalendarWidget } from '../components/Widgets/CalendarWidget';
+import { CalendarWidgetNoTouch } from '../components/Widgets/CalendarWidgetNoTouch';
 
 export interface TabConfig {
   id: string;
@@ -12,11 +12,12 @@ export const ROTATION_INTERVAL_SECONDS = 600;
 
 // Configure your tabs here
 // Add new tabs by importing the widget component and adding to this array
+// Using CalendarWidgetNoTouch for reTerminal E1002 (no touch screen support)
 export const tabs: TabConfig[] = [
   {
     id: 'calendar',
     label: 'Calendar',
-    component: CalendarWidget,
+    component: CalendarWidgetNoTouch,
   },
   // Future tabs can be added here:
   // { id: 'weather', label: 'Weather', component: WeatherWidget },
