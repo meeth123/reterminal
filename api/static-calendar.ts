@@ -8,6 +8,20 @@ interface CalendarEvent {
   end: string;
   location?: string;
   allDay: boolean;
+  description?: string;
+  attendees?: number;
+  conferenceData?: {
+    conferenceId?: string;
+    conferenceSolution?: {
+      name?: string;
+    };
+    entryPoints?: Array<{
+      entryPointType?: string;
+      uri?: string;
+      label?: string;
+    }>;
+  };
+  hangoutLink?: string;
 }
 
 interface CalendarResponse {
@@ -69,8 +83,22 @@ async function getEventsForDate(dateStr?: string): Promise<CalendarResponse> {
       summary: event.summary || 'No Title',
       start: event.start?.dateTime || event.start?.date || '',
       end: event.end?.dateTime || event.end?.date || '',
-      location: event.location,
+      location: event.location || undefined,
       allDay: isAllDay,
+      description: event.description || undefined,
+      attendees: event.attendees?.length || 0,
+      conferenceData: event.conferenceData ? {
+        conferenceId: event.conferenceData.conferenceId || undefined,
+        conferenceSolution: event.conferenceData.conferenceSolution ? {
+          name: event.conferenceData.conferenceSolution.name || undefined,
+        } : undefined,
+        entryPoints: event.conferenceData.entryPoints?.map(ep => ({
+          entryPointType: ep.entryPointType || undefined,
+          uri: ep.uri || undefined,
+          label: ep.label || undefined,
+        })),
+      } : undefined,
+      hangoutLink: event.hangoutLink || undefined,
     };
   });
 
@@ -222,6 +250,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       color: #475569;
     }
 
+    .event-meta {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+      font-size: 13px;
+      color: #64748b;
+    }
+
+    .event-badge {
+      background: #e2e8f0;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    .event-link {
+      color: #3b82f6;
+      text-decoration: none;
+      font-size: 12px;
+    }
+
     .no-events {
       text-align: center;
       padding: 60px 20px;
@@ -264,7 +315,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     </div>
   ` : `
     <div class="events">
-      ${events.map(event => `
+      ${events.map(event => {
+        // Extract conference link
+        const meetLink = event.hangoutLink || event.conferenceData?.entryPoints?.find(ep => ep.entryPointType === 'video')?.uri;
+        const confName = event.conferenceData?.conferenceSolution?.name;
+
+        return `
         <div class="event">
           <div class="event-time">
             <div class="event-time-main">${formatTime(event.start, event.allDay)}</div>
@@ -272,10 +328,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           </div>
           <div class="event-details">
             <div class="event-title">${escapeHtml(event.summary)}</div>
-            ${event.location ? `<div class="event-location">📍 ${escapeHtml(event.location)}</div>` : ''}
+            <div class="event-meta">
+              ${event.location ? `<span>📍 ${escapeHtml(event.location)}</span>` : ''}
+              ${event.attendees && event.attendees > 0 ? `<span class="event-badge">👥 ${event.attendees} ${event.attendees === 1 ? 'person' : 'people'}</span>` : ''}
+              ${meetLink ? `<span>🎥 ${confName || 'Video call'}</span>` : ''}
+            </div>
           </div>
         </div>
-      `).join('')}
+      `}).join('')}
     </div>
   `}
 

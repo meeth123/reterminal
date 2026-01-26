@@ -8,6 +8,20 @@ interface CalendarEvent {
   end: string;
   location?: string;
   allDay: boolean;
+  description?: string;
+  attendees?: number;
+  conferenceData?: {
+    conferenceId?: string;
+    conferenceSolution?: {
+      name?: string;
+    };
+    entryPoints?: Array<{
+      entryPointType?: string;
+      uri?: string;
+      label?: string;
+    }>;
+  };
+  hangoutLink?: string;
 }
 
 interface CalendarResponse {
@@ -71,8 +85,22 @@ async function getEventsForDate(dateStr?: string): Promise<CalendarResponse> {
       summary: event.summary || 'No Title',
       start: event.start?.dateTime || event.start?.date || '',
       end: event.end?.dateTime || event.end?.date || '',
-      location: event.location,
+      location: event.location || undefined,
       allDay: isAllDay,
+      description: event.description || undefined,
+      attendees: event.attendees?.length || 0,
+      conferenceData: event.conferenceData ? {
+        conferenceId: event.conferenceData.conferenceId || undefined,
+        conferenceSolution: event.conferenceData.conferenceSolution ? {
+          name: event.conferenceData.conferenceSolution.name || undefined,
+        } : undefined,
+        entryPoints: event.conferenceData.entryPoints?.map(ep => ({
+          entryPointType: ep.entryPointType || undefined,
+          uri: ep.uri || undefined,
+          label: ep.label || undefined,
+        })),
+      } : undefined,
+      hangoutLink: event.hangoutLink || undefined,
     };
   });
 
