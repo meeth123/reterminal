@@ -4,7 +4,9 @@
       "Bash(npm run dev:all:*)",
       "Bash(lsof:*)",
       "Bash(kill:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd comprehensive logging for debugging device issues\n\n- Add detailed server-side logging in API endpoints\n  - Log client IP, user agent, timestamps\n  - Log request/response details and timing\n  - Log errors with stack traces\n- Add health check endpoint for diagnostics\n- Enhance frontend logging\n  - Test health endpoint before fetching events\n  - Log user agent and full request details\n  - Log response headers and error details\n- Improve error display UI\n  - Show user agent and timestamp\n  - Add reload button\n  - Show more detailed error messages\n\nThis will help diagnose why reTerminal device gets stuck on loading.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)"
     ]
   }
 }

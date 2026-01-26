@@ -106,6 +106,16 @@ The app is configured for Vercel deployment with serverless functions:
 
 The API routes in `api/` directory will be automatically deployed as serverless functions.
 
+## Debugging
+
+If the reTerminal device gets stuck on "Loading Calendar..." or shows errors:
+
+1. **Access Diagnostic Page**: https://reterminal.vercel.app/diagnostic
+2. **Open Debug Console**: Double-click bottom-right corner or press `Ctrl+Shift+D`
+3. **Check Serial Monitor**: See [DEBUGGING.md](./DEBUGGING.md) for detailed instructions
+
+See [DEBUGGING.md](./DEBUGGING.md) for comprehensive debugging guide.
+
 ## Scripts
 
 | Script | Description |
