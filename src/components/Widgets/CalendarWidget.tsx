@@ -58,6 +58,7 @@ export function CalendarWidget() {
   const [data, setData] = useState<CalendarData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState<string>('Initializing...');
 
   const isToday = selectedDate === getTodayString();
 
@@ -68,11 +69,22 @@ export function CalendarWidget() {
 
     try {
       setLoading(true);
+      setError(null);
+      setLoadingProgress('Starting...');
+
+      // Set a timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.error('[CalendarWidget] Request timeout after 15 seconds');
+        setLoading(false);
+        setError('Request timeout - API took too long to respond. Click Retry or Skip Loading.');
+      }, 15000);
+
       const url = `/api/events?date=${date}`;
       console.log('[CalendarWidget] Fetching from URL:', url);
       console.log('[CalendarWidget] Full URL:', window.location.origin + url);
 
       // Test health check first
+      setLoadingProgress('Testing API connection...');
       console.log('[CalendarWidget] Testing health endpoint...');
       const healthResponse = await fetch('/api/health');
       console.log('[CalendarWidget] Health check status:', healthResponse.status);
@@ -81,6 +93,7 @@ export function CalendarWidget() {
         console.log('[CalendarWidget] Health check data:', healthData);
       }
 
+      setLoadingProgress('Fetching calendar events...');
       const response = await fetch(url, {
         headers: {
           'Accept': 'application/json',
@@ -89,18 +102,24 @@ export function CalendarWidget() {
       console.log('[CalendarWidget] Response status:', response.status);
       console.log('[CalendarWidget] Response headers:', Object.fromEntries(response.headers.entries()));
 
+      // Clear timeout on successful response
+      clearTimeout(timeoutId);
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('[CalendarWidget] Error response:', errorText);
         throw new Error(`Failed to fetch events: ${response.status} ${response.statusText}`);
       }
 
+      setLoadingProgress('Processing response...');
       const result = await response.json();
       console.log('[CalendarWidget] Received data:', JSON.stringify(result, null, 2));
       console.log('[CalendarWidget] Events count:', result.events?.length || 0);
 
+      setLoadingProgress('Complete!');
       setData(result);
       setError(null);
+      setLoading(false);
     } catch (err) {
       console.error('[CalendarWidget] Fetch error:', err);
       console.error('[CalendarWidget] Error details:', {
@@ -109,7 +128,6 @@ export function CalendarWidget() {
         stack: err instanceof Error ? err.stack : undefined,
       });
       setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
       setLoading(false);
     }
   }, []);
@@ -139,8 +157,44 @@ export function CalendarWidget() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-lg text-slate-500">Loading calendar...</p>
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <div className="text-center">
+          <p className="text-lg text-slate-700 font-semibold mb-2">Loading calendar...</p>
+          <p className="text-sm text-slate-500">{loadingProgress}</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              console.log('[CalendarWidget] Skip loading clicked');
+              setLoading(false);
+              setError('Loading skipped by user');
+            }}
+            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
+          >
+            Skip Loading
+          </button>
+          <button
+            onClick={() => {
+              console.log('[CalendarWidget] Retry clicked');
+              fetchEvents(selectedDate);
+            }}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Retry
+          </button>
+          <button
+            onClick={() => {
+              console.log('[CalendarWidget] Open diagnostic clicked');
+              window.location.href = '/diagnostic';
+            }}
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+          >
+            Diagnostic
+          </button>
+        </div>
+        <p className="text-xs text-slate-400 mt-2">
+          If stuck for more than 10 seconds, click "Skip Loading"
+        </p>
       </div>
     );
   }
