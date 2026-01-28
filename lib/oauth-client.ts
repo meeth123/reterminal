@@ -5,7 +5,7 @@
 
 import { google, calendar_v3 } from 'googleapis';
 import { Redis } from '@upstash/redis';
-import type { OAuthTokens, TokenStorageData } from './types';
+import type { OAuthTokens, TokenStorageData } from './types.js';
 
 const REDIS_KEY = 'google_oauth_tokens';
 
