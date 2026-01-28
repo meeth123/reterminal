@@ -477,10 +477,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               <div class="event-details">
                 <div class="event-title-row">
                   <span class="event-title-text">${escapeHtml(event.summary)}</span>
-                  ${event.location || (event.attendees && event.attendees > 0) ? `
+                  ${event.attendees && event.attendees > 0 ? `
                     <span class="event-meta-inline">
-                      ${event.location ? ` • ${escapeHtml(event.location.split('(')[0].trim())}` : ''}
-                      ${event.attendees && event.attendees > 0 ? ` • ${event.attendees} ${event.attendees === 1 ? 'person' : 'people'}` : ''}
+                      • ${event.attendees} ${event.attendees === 1 ? 'person' : 'people'}
                     </span>
                   ` : ''}
                 </div>
