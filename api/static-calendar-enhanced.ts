@@ -41,7 +41,6 @@ async function getEventsForDate(dateStr?: string): Promise<CalendarResponse> {
   console.log('[StaticCalendar] Cache miss, fetching from API');
 
   const calendar = await getCalendarClient();
-  const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
 
   const targetDate = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
   const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
@@ -168,6 +167,11 @@ function getEventStats(events: CalendarEvent[]) {
   const withAttendees = events.filter(e => e.attendees && e.attendees > 0).length;
   const withLocation = events.filter(e => e.location).length;
 
+  // Format total hours for display
+  const formattedTotalHours = totalMinutes >= 60
+    ? `${hours}h ${minutes}m`
+    : `${minutes}m`;
+
   return {
     totalEvents,
     allDayEvents,
@@ -175,6 +179,7 @@ function getEventStats(events: CalendarEvent[]) {
     busyTime: `${hours}h ${minutes}m`,
     withAttendees,
     withLocation,
+    totalHours: formattedTotalHours,
   };
 }
 
@@ -291,7 +296,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       min-width: 0;
     }
 
-    .event-title {
+    .event-title-row {
       font-size: 16px;
       font-weight: 600;
       color: #0f172a;
@@ -299,22 +304,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-    }
-
-    .event-meta {
-      font-size: 12px;
-      color: #64748b;
       display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 4px;
     }
 
-    .event-badge {
-      background: #e2e8f0;
+    .event-title-text {
+      flex-shrink: 1;
+      min-width: 0;
+    }
+
+    .event-meta-inline {
+      font-size: 16px;
+      font-weight: 400;
+      color: #64748b;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    .event-status-badge {
+      background: #dbeafe;
+      color: #1e40af;
       padding: 2px 6px;
       border-radius: 3px;
       font-size: 10px;
       font-weight: 600;
+      display: inline-block;
+      margin-top: 4px;
     }
 
     .sidebar {
@@ -384,6 +400,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       margin-top: 2px;
     }
 
+    .total-hours-stat {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #e2e8f0;
+      text-align: center;
+    }
+
+    .total-hours-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #3b82f6;
+    }
+
+    .total-hours-label {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
     .no-events {
       text-align: center;
       padding: 40px 20px;
@@ -426,7 +463,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         </div>
       ` : `
         <div class="events">
-          ${events.slice(0, 6).map((event, idx) => {
+          ${events.filter(e => !e.allDay).slice(0, 6).map((event, idx) => {
             const isCurrent = nextEventInfo?.type === 'current' && nextEventInfo.event.id === event.id;
             const isNext = nextEventInfo?.type === 'upcoming' && nextEventInfo.event.id === event.id;
             const duration = calculateEventDuration(event.start, event.end, event.allDay);
@@ -438,12 +475,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 ${!event.allDay ? `<div class="event-time-end">${duration}min</div>` : ''}
               </div>
               <div class="event-details">
-                <div class="event-title">${escapeHtml(event.summary)}</div>
-                <div class="event-meta">
-                  ${event.location ? `<span>📍 ${escapeHtml(event.location.substring(0, 20))}${event.location.length > 20 ? '...' : ''}</span>` : ''}
-                  ${event.attendees && event.attendees > 0 ? `<span class="event-badge">👥 ${event.attendees}</span>` : ''}
-                  ${isCurrent ? `<span class="event-badge" style="background: #dbeafe; color: #1e40af;">NOW</span>` : ''}
+                <div class="event-title-row">
+                  <span class="event-title-text">${escapeHtml(event.summary)}</span>
+                  ${event.location || (event.attendees && event.attendees > 0) ? `
+                    <span class="event-meta-inline">
+                      ${event.location ? ` • ${escapeHtml(event.location.split('(')[0].trim())}` : ''}
+                      ${event.attendees && event.attendees > 0 ? ` • ${event.attendees} ${event.attendees === 1 ? 'person' : 'people'}` : ''}
+                    </span>
+                  ` : ''}
                 </div>
+                ${isCurrent ? `<div class="event-status-badge">NOW</div>` : ''}
               </div>
             </div>
           `}).join('')}
@@ -500,6 +541,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             <div class="stat-value">${stats.withLocation}</div>
             <div class="stat-label">IN-PERSON</div>
           </div>
+        </div>
+        <div class="total-hours-stat">
+          <div class="total-hours-value">${stats.totalHours}</div>
+          <div class="total-hours-label">Total Meeting Time</div>
         </div>
       </div>
 
