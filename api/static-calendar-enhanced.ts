@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { calendar_v3 } from 'googleapis';
 import { getOAuthCalendarClient } from '../lib/oauth-client.js';
+import { getCachedCalendar, setCachedCalendar, generateCacheKey } from '../lib/calendar-cache.js';
 
 interface CalendarEvent {
   id: string;
@@ -26,6 +27,19 @@ async function getCalendarClient(): Promise<calendar_v3.Calendar> {
 }
 
 async function getEventsForDate(dateStr?: string): Promise<CalendarResponse> {
+  const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
+  const date = dateStr || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
+  // Check cache first
+  const cacheKey = generateCacheKey(calendarId, date);
+  const cached = await getCachedCalendar<CalendarResponse>(cacheKey);
+  if (cached) {
+    console.log('[StaticCalendar] Returning cached data');
+    return cached;
+  }
+
+  console.log('[StaticCalendar] Cache miss, fetching from API');
+
   const calendar = await getCalendarClient();
   const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
 
