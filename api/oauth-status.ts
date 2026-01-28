@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { loadTokens, getOAuthCalendarClient } from '../lib/oauth-client';
+import { loadTokens, getOAuthCalendarClient } from '../lib/oauth-client.js';
 
 interface OAuthStatusResponse {
   authenticated: boolean;

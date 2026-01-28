@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { calendar_v3 } from 'googleapis';
-import { getOAuthCalendarClient, isOAuthConfigured } from '../lib/oauth-client';
+import { getOAuthCalendarClient } from '../lib/oauth-client.js';
 
 interface CalendarEvent {
   id: string;
