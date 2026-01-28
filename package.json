@@ -10,18 +10,21 @@
     "build": "tsc -b && vite build",
     "start": "NODE_ENV=production node --import tsx server/index.ts",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "oauth:setup": "tsx scripts/oauth-setup.ts",
+    "oauth:verify": "tsx scripts/verify-tokens.ts"
   },
   "dependencies": {
+    "@upstash/redis": "^1.36.1",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "googleapis": "^170.1.0",
+    "open": "^11.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "@vercel/node": "^3.0.21",
     "@eslint/js": "^9.39.1",
     "@tailwindcss/vite": "^4.1.18",
     "@types/cors": "^2.8.19",
@@ -29,6 +32,7 @@
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
+    "@vercel/node": "^3.0.21",
     "@vitejs/plugin-react": "^5.1.1",
     "concurrently": "^9.2.1",
     "eslint": "^9.39.1",

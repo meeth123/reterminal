@@ -5,7 +5,8 @@ A web dashboard for the reTerminal E-Ink display featuring an auto-rotating tab 
 ## Features
 
 - **Auto-rotating tabs** - Configurable interval (default: 10 minutes)
-- **Google Calendar integration** - View today's events via Service Account
+- **Google Calendar integration** - View today's events via OAuth 2.0
+- **Full attendee access** - See who's invited to meetings (OAuth bypasses org restrictions)
 - **E-Ink optimized** - No animations or transitions for clean display rendering
 - **Extensible** - Easy to add new widget tabs
 
@@ -17,15 +18,53 @@ A web dashboard for the reTerminal E-Ink display featuring an auto-rotating tab 
 npm install
 ```
 
-### 2. Configure Google Calendar Service Account
+### 2. Configure Google Calendar OAuth 2.0
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project (or use existing)
-3. Enable the Google Calendar API
-4. Create a Service Account under "Credentials"
-5. Create and download a JSON key for the service account
-6. Save the JSON file as `service-account.json` in the project root
-7. Share your Google Calendar with the service account email (found in the JSON file)
+#### Production Setup (Vercel)
+
+1. **Add Upstash Redis Integration**
+   - Go to Vercel dashboard → Your Project → Integrations
+   - Search for "Upstash Redis" and add integration
+   - Create new database: `reterminal-oauth-tokens`
+   - This automatically adds `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` environment variables
+
+2. **Create OAuth Credentials**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project: "reTerminal Calendar"
+   - Enable the Google Calendar API
+   - Configure OAuth consent screen:
+     - User Type: **Internal** (if using Google Workspace) or **External**
+     - Add scope: `https://www.googleapis.com/auth/calendar.events`
+     - Add your email as test user
+   - Create OAuth 2.0 Client ID:
+     - Type: **Web application**
+     - Authorized redirect URI: `http://localhost:3000/oauth/callback`
+
+3. **Add Environment Variables to Vercel**
+   - `GOOGLE_OAUTH_CLIENT_ID` - From OAuth credentials
+   - `GOOGLE_OAUTH_CLIENT_SECRET` - From OAuth credentials
+   - `GOOGLE_CALENDAR_ID` - Your email (e.g., meeth@quizizz.com)
+
+4. **Run OAuth Setup Locally**
+   ```bash
+   npm run oauth:setup
+   ```
+   - This opens your browser for authorization
+   - Tokens are stored in Upstash Redis
+   - Only needs to run once (tokens auto-refresh)
+
+5. **Verify OAuth Setup**
+   ```bash
+   npm run oauth:verify
+   ```
+
+#### Local Development (Optional - Service Account)
+
+For local development, you can optionally use a Service Account:
+1. Create Service Account in Google Cloud Console
+2. Download JSON key as `service-account.json`
+3. Share your calendar with the service account email
+4. Set `GOOGLE_SERVICE_ACCOUNT_PATH=./service-account.json` in `.env`
 
 ### 3. Configure Environment
 
@@ -38,9 +77,12 @@ cp .env.example .env
 Edit `.env` with your settings:
 
 ```
-GOOGLE_SERVICE_ACCOUNT_PATH=./service-account.json
 GOOGLE_CALENDAR_ID=your-email@gmail.com
-PORT=3001
+GOOGLE_OAUTH_CLIENT_ID=xxx.apps.googleusercontent.com
+GOOGLE_OAUTH_CLIENT_SECRET=xxx
+UPSTASH_REDIS_REST_URL=https://xxx.upstash.io
+UPSTASH_REDIS_REST_TOKEN=xxx
+PORT=3002
 ```
 
 ### 4. Run Development
@@ -97,14 +139,21 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed architecture documentation
 
 The app is configured for Vercel deployment with serverless functions:
 
-1. Push your code to GitHub
-2. Import the repository in Vercel
-3. Add environment variables in Vercel dashboard:
-   - `GOOGLE_SERVICE_ACCOUNT_JSON`: Paste the entire contents of your service account JSON file
-   - `GOOGLE_CALENDAR_ID`: Your calendar ID (email address)
-4. Deploy
+1. **Setup Upstash Redis** (see step 2 in Setup)
+2. **Add OAuth Credentials** to Vercel environment variables:
+   - `GOOGLE_OAUTH_CLIENT_ID`
+   - `GOOGLE_OAUTH_CLIENT_SECRET`
+   - `GOOGLE_CALENDAR_ID`
+3. **Push code to GitHub** and import in Vercel
+4. **Run OAuth setup locally**: `npm run oauth:setup`
+   - Authorizes your Google account
+   - Stores tokens in Upstash Redis
+   - Tokens auto-refresh, no need to re-authorize
+5. **Deploy**
 
 The API routes in `api/` directory will be automatically deployed as serverless functions.
+
+Check OAuth status at: `https://your-app.vercel.app/api/oauth-status`
 
 ## Debugging
 
@@ -126,3 +175,5 @@ See [DEBUGGING.md](./DEBUGGING.md) for comprehensive debugging guide.
 | `npm run build` | Build for production |
 | `npm start` | Run production server |
 | `npm run lint` | Run ESLint |
+| `npm run oauth:setup` | Run OAuth authorization (one-time) |
+| `npm run oauth:verify` | Verify OAuth tokens are working |

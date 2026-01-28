@@ -1,20 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { google } from 'googleapis';
+import { getOAuthCalendarClient } from '../lib/oauth-client';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-    if (!serviceAccountJson) {
-      return res.status(500).json({ error: 'Service account not configured' });
-    }
-
-    const credentials = JSON.parse(serviceAccountJson);
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
-    });
-
-    const calendar = google.calendar({ version: 'v3', auth });
+    // Use OAuth 2.0 authentication
+    const calendar = await getOAuthCalendarClient();
     const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
 
     // Fetch one event with ALL fields

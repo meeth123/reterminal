@@ -16,6 +16,8 @@ dist-ssr
 .env
 service-account.json
 quizizz-org-*.json
+oauth-credentials.json
+client_secret_*.json
 *.pem
 *.key
 
@@ -29,3 +31,5 @@ quizizz-org-*.json
 *.njsproj
 *.sln
 *.sw?
+.vercel
+.env*.local

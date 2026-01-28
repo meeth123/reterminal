@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { google, calendar_v3 } from 'googleapis';
+import { calendar_v3 } from 'googleapis';
+import { getOAuthCalendarClient } from '../lib/oauth-client';
 
 interface CalendarEvent {
   id: string;
@@ -18,28 +19,10 @@ interface CalendarResponse {
   date: string;
 }
 
-let calendarClient: calendar_v3.Calendar | null = null;
-
 async function getCalendarClient(): Promise<calendar_v3.Calendar> {
-  if (calendarClient) {
-    return calendarClient;
-  }
-
-  const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-
-  if (!serviceAccountJson) {
-    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON environment variable is not set');
-  }
-
-  const credentials = JSON.parse(serviceAccountJson);
-
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
-  });
-
-  calendarClient = google.calendar({ version: 'v3', auth });
-  return calendarClient;
+  // Use OAuth 2.0 authentication
+  // Tokens are stored in Upstash Redis and automatically refreshed
+  return await getOAuthCalendarClient();
 }
 
 async function getEventsForDate(dateStr?: string): Promise<CalendarResponse> {
