@@ -8,6 +8,13 @@ import { Redis } from '@upstash/redis';
 import type { OAuthTokens, TokenStorageData } from './types.js';
 
 const REDIS_KEY = 'google_oauth_tokens';
+const MAX_REFRESH_RETRIES = 3;
+const RETRY_DELAY_MS = 1000;
+
+// Sleep helper for retries
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 // Initialize Redis client
 function getRedisClient(): Redis | null {
@@ -58,7 +65,8 @@ export async function loadTokens(): Promise<OAuthTokens | null> {
       return null;
     }
 
-    console.log('[OAuth] Tokens loaded from Redis');
+    const expiresIn = data.tokens.expiry_date ? Math.round((data.tokens.expiry_date - Date.now()) / 1000 / 60) : 'unknown';
+    console.log(`[OAuth] Tokens loaded from Redis (expires in ${expiresIn} minutes)`);
     return data.tokens;
   } catch (error) {
     console.error('[OAuth] Error loading tokens:', error);
@@ -99,7 +107,7 @@ function isTokenExpired(tokens: OAuthTokens): boolean {
   return Date.now() >= (tokens.expiry_date - bufferMs);
 }
 
-// Refresh tokens if needed
+// Refresh tokens if needed with retry logic
 async function refreshTokensIfNeeded(tokens: OAuthTokens): Promise<OAuthTokens> {
   if (!isTokenExpired(tokens)) {
     console.log('[OAuth] Tokens still valid');
@@ -113,26 +121,50 @@ async function refreshTokensIfNeeded(tokens: OAuthTokens): Promise<OAuthTokens> 
     refresh_token: tokens.refresh_token,
   });
 
-  try {
-    const { credentials } = await oauth2Client.refreshAccessToken();
+  let lastError: any;
 
-    const refreshedTokens: OAuthTokens = {
-      access_token: credentials.access_token!,
-      refresh_token: tokens.refresh_token, // Preserve original refresh token
-      scope: credentials.scope || tokens.scope,
-      token_type: credentials.token_type || 'Bearer',
-      expiry_date: credentials.expiry_date || Date.now() + (3600 * 1000),
-    };
+  // Retry with exponential backoff
+  for (let attempt = 1; attempt <= MAX_REFRESH_RETRIES; attempt++) {
+    try {
+      console.log(`[OAuth] Refresh attempt ${attempt}/${MAX_REFRESH_RETRIES}`);
+      const { credentials } = await oauth2Client.refreshAccessToken();
 
-    // Store refreshed tokens
-    await storeTokens(refreshedTokens);
+      const refreshedTokens: OAuthTokens = {
+        access_token: credentials.access_token!,
+        // Use new refresh token if provided, otherwise keep the old one
+        refresh_token: credentials.refresh_token || tokens.refresh_token,
+        scope: credentials.scope || tokens.scope,
+        token_type: credentials.token_type || 'Bearer',
+        expiry_date: credentials.expiry_date || Date.now() + (3600 * 1000),
+      };
 
-    console.log('[OAuth] Tokens refreshed successfully');
-    return refreshedTokens;
-  } catch (error) {
-    console.error('[OAuth] Error refreshing tokens:', error);
-    throw new Error('Failed to refresh OAuth tokens. Re-authorization may be required.');
+      // Store refreshed tokens
+      await storeTokens(refreshedTokens);
+
+      console.log('[OAuth] Tokens refreshed successfully');
+      return refreshedTokens;
+    } catch (error: any) {
+      lastError = error;
+      console.error(`[OAuth] Refresh attempt ${attempt} failed:`, error?.message || error);
+
+      // Check if it's a permanent error (invalid_grant means refresh token is invalid)
+      if (error?.message?.includes('invalid_grant') || error?.response?.data?.error === 'invalid_grant') {
+        console.error('[OAuth] Refresh token is invalid. Re-authorization required.');
+        throw new Error('OAuth refresh token is invalid. Please re-run: npm run oauth:setup');
+      }
+
+      // If not the last attempt, wait before retrying
+      if (attempt < MAX_REFRESH_RETRIES) {
+        const delay = RETRY_DELAY_MS * Math.pow(2, attempt - 1); // Exponential backoff
+        console.log(`[OAuth] Waiting ${delay}ms before retry...`);
+        await sleep(delay);
+      }
+    }
   }
+
+  // All retries failed
+  console.error('[OAuth] All refresh attempts failed:', lastError);
+  throw new Error('Failed to refresh OAuth tokens after multiple attempts. Re-authorization may be required.');
 }
 
 // Get authenticated Google Calendar client
